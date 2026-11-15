@@ -28,6 +28,9 @@ export default function Home(){
   const navigate=useNavigate();
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState('');
+  const [delivery,setDelivery]=useState({phone:'',address:'',instructions:''});
+  const [paymentMethod,setPaymentMethod]=useState('cod');
+  const razorpayAvailable=Boolean(import.meta.env.VITE_RAZORPAY_KEY_ID);
 
   useEffect(()=>{
     localStorage.setItem('slice_cart',JSON.stringify(cart));
@@ -97,6 +100,11 @@ export default function Home(){
       navigate('/login');
       return;
     }
+    const phone=delivery.phone.replace(/\D/g,'');
+    if(!/^[6-9]\d{9}$/.test(phone)){setNotice('Enter a valid 10-digit Indian mobile number.');return;}
+    if(delivery.address.trim().length<10){setNotice('Enter a complete delivery address (at least 10 characters).');return;}
+    if(paymentMethod==='razorpay'&&!razorpayAvailable){setNotice('Online payment is not configured yet. Choose Cash on Delivery for now.');return;}
+    const customerDetails={phone,address:delivery.address.trim(),instructions:delivery.instructions.trim()};
     setBusy(true);
     setNotice('');
     try{
@@ -105,9 +113,8 @@ export default function Home(){
         quantity:x.quantity,
         customization:x.customization||defaultCustomization
       }));
-      const hasRazorpay=Boolean(import.meta.env.VITE_RAZORPAY_KEY_ID);
-      if(hasRazorpay){
-        const {data}=await api.post('/orders/payment-order',{items});
+      if(paymentMethod==='razorpay'){
+        const {data}=await api.post('/orders/payment-order',{items,customerDetails});
         let script=document.querySelector('script[data-razorpay]');
         if(!script){
           script=document.createElement('script');
@@ -130,6 +137,7 @@ export default function Home(){
             try{
               await api.post('/orders/verify-payment',{
                 items,
+                customerDetails,
                 razorpay_order_id:response.razorpay_order_id,
                 razorpay_payment_id:response.razorpay_payment_id,
                 razorpay_signature:response.razorpay_signature
@@ -144,7 +152,7 @@ export default function Home(){
         });
         rzp.open();
       }else{
-        const {data}=await api.post('/orders/cod',{items});
+        const {data}=await api.post('/orders/cod',{items,customerDetails});
         setCart([]);
         setNotice('Order #'+data.order._id.slice(-6).toUpperCase()+' placed with Cash on Delivery.');
       }
@@ -241,16 +249,32 @@ export default function Home(){
           </article>)}
         </div>
       }
+      {cart.length>0&&<section className="checkout-details" aria-labelledby="checkout-details-title">
+        <div className="checkout-section-title"><span>02 — CHECKOUT</span><h3 id="checkout-details-title">Delivery & contact details</h3><p>We’ll use this information to deliver your order and contact you if needed.</p></div>
+        <div className="checkout-profile"><div><small>Ordering as</small><b>{user?.name||'Sign in required'}</b></div><div><small>Account email</small><b>{user?.email||'—'}</b></div></div>
+        <div className="checkout-fields">
+          <label>Mobile number <span>Required</span><input type="tel" inputMode="numeric" autoComplete="tel" maxLength={10} placeholder="10-digit mobile number" value={delivery.phone} onChange={e=>setDelivery({...delivery,phone:e.target.value.replace(/\D/g,'').slice(0,10)})}/></label>
+          <label className="address-field">Delivery address <span>Required</span><textarea autoComplete="street-address" rows={3} maxLength={250} placeholder="House / flat, street, area, landmark, city, PIN code" value={delivery.address} onChange={e=>setDelivery({...delivery,address:e.target.value})}/></label>
+          <label className="address-field">Delivery instructions <small>Optional</small><textarea rows={2} maxLength={300} placeholder="Landmark, gate instructions or other delivery notes" value={delivery.instructions} onChange={e=>setDelivery({...delivery,instructions:e.target.value})}/></label>
+        </div>
+        <div className="payment-block"><div className="checkout-section-title"><span>03 — PAYMENT</span><h3>Choose how to pay</h3></div>
+          <div className="payment-options">
+            <label className={"payment-option "+(paymentMethod==='cod'?'selected':'')}><input type="radio" name="paymentMethod" value="cod" checked={paymentMethod==='cod'} onChange={()=>setPaymentMethod('cod')}/><span><b>Cash on Delivery</b><small>Pay when your pizza arrives</small></span><strong>Available</strong></label>
+            <label className={"payment-option "+(paymentMethod==='razorpay'?'selected':'')+(!razorpayAvailable?' unavailable':'')}><input type="radio" name="paymentMethod" value="razorpay" checked={paymentMethod==='razorpay'} disabled={!razorpayAvailable} onChange={()=>setPaymentMethod('razorpay')}/><span><b>Pay Online</b><small>UPI · Cards · Netbanking · Wallets</small></span><strong>{razorpayAvailable?'Secure checkout':'Not configured'}</strong></label>
+          </div>
+          {!razorpayAvailable&&<p className="payment-help">Online payments will be available after the store’s Razorpay test keys are configured. Cash on Delivery is ready to use.</p>}
+        </div>
+      </section>}
       <div className="cart-footer">
-        <div><small>{itemCount} item(s)</small><b>Subtotal <strong>₹{subtotal}</strong></b><small className="checkout-note">{user?'Ready to place your order.':'Sign in is required before checkout. Your bag will be saved.'}</small></div>
-        <button className="primary checkout-button" onClick={checkout} disabled={!cart.length||busy}>{busy?'Processing…':user?'Place order':'Sign in to checkout'} <ArrowRight size={17}/></button>
+        <div><small>{itemCount} item(s)</small><b>Subtotal <strong>₹{subtotal}</strong></b><small className="checkout-note">{user?'Review your delivery and payment details above.':'Sign in is required before checkout. Your bag will be saved.'}</small></div>
+        <button className="primary checkout-button" onClick={checkout} disabled={!cart.length||busy}>{busy?'Processing…':user?(paymentMethod==='razorpay'?'Pay ₹'+subtotal:'Place order'):'Sign in to checkout'} <ArrowRight size={17}/></button>
       </div>
       {notice&&<p className="cart-notice" role="status">{notice}</p>}
     </section>
 
     <footer className="footer">
       <Link className="brand" to="/"><span className="brand-icon"><span>✦</span></span>slice<span>house</span></Link>
-      <span>Good pizza. Good mood. © 2026 SliceHouse.</span>
+      <span>Good pizza. Good mood. © 2026 SliceHouse. · Contact and delivery details are collected at checkout.</span>
     </footer>
   </>;
 }
