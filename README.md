@@ -5,7 +5,8 @@ A Level 3 MERN-style pizza ordering and inventory app built with React, Express,
 ## Features
 - Customer registration with email verification, JWT login, and password reset links.
 - Pizza catalog and four-step custom pizza builder (base, sauce, cheese, vegetables).
-- Razorpay Checkout integration (test keys only); COD/demo checkout is available when Razorpay keys are not configured.
+- Checkout captures the signed-in customer’s mobile number, delivery address and optional delivery instructions; the same details appear in customer order history and the admin order list.
+- Cash on Delivery is available by default. Razorpay Checkout supports online UPI, card, netbanking and wallet methods when test credentials are configured.
 - Customer order history and live order status updates through Socket.IO.
 - Separate admin login, order management, inventory editing, and configurable low-stock thresholds.
 - Inventory is decremented in a MongoDB transaction after payment is verified; low-stock email alerts run on a schedule.
@@ -39,7 +40,7 @@ npm run dev
 Open `http://localhost:5173`.
 
 ### Environment configuration
-Edit `server/.env` and set `MONGO_URI`, a long random `JWT_SECRET`, `CLIENT_URL`, and SMTP credentials. Set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` to Razorpay **test-mode** credentials to enable real test checkout. Never commit `.env` files.
+Edit `server/.env` and set `MONGO_URI`, a long random `JWT_SECRET`, `CLIENT_URL`, and SMTP credentials. Set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` on the API, and `VITE_RAZORPAY_KEY_ID` in `client/.env`, using Razorpay **test-mode** credentials to enable online test checkout. Keep the secret key only on the server; never expose or commit it.
 
 For local MongoDB transactions, start MongoDB as a single-node replica set. Atlas clusters are replica-set enabled. When SMTP is not configured, verification/reset links are logged to the backend console for local development only.
 
@@ -61,7 +62,7 @@ Use Razorpay test keys only. The frontend loads Checkout.js and the backend crea
 - `GET /api/admin/overview`, `/orders`, `/inventory`; `PATCH /api/admin/orders/:id/status`; `PATCH /api/admin/inventory/:id`
 
 ## Deployment notes
-Deploy the API and frontend separately. Configure all environment variables in the hosting dashboard, use MongoDB Atlas, set the production frontend origin in `CLIENT_URL` and `CORS_ORIGINS`, and configure SMTP + Razorpay live keys only after a separate production security review. Socket.IO needs a hosting platform that supports persistent WebSocket connections. Use HTTPS everywhere.
+Deploy the API and frontend separately. Configure all environment variables in the hosting dashboards, use MongoDB Atlas, set the production frontend origin in `CLIENT_URL` and `CORS_ORIGINS`, and set `VITE_RAZORPAY_KEY_ID` in the frontend deployment. Keep `RAZORPAY_KEY_SECRET` server-only. Configure production Razorpay live keys only after a separate production security review. Socket.IO needs a hosting platform that supports persistent WebSocket connections. Use HTTPS everywhere.
 
 ## Important
 This is an educational starter, not a certified production commerce system. Before real-world use, add payment webhook reconciliation, idempotency keys, inventory reservation expiry/compensation, audit logging, stronger abuse controls, delivery address validation, tax/shipping rules, and a formal security review. MongoDB transactions require a replica set.
