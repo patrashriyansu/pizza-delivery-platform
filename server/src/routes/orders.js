@@ -14,9 +14,9 @@ function validateDeliveryDetails(details){
   const phone=String(details?.phone||'').replace(/\\D/g,'');
   const address=String(details?.address||'').trim();
   const instructions=String(details?.instructions||'').trim();
-  if(!/^[6-9]\\d{9}$/.test(phone)) throw new Error('Enter a valid 10-digit Indian mobile number');
-  if(address.length<10||address.length>250) throw new Error('Enter a complete delivery address (10 to 250 characters)');
-  if(instructions.length>300) throw new Error('Delivery instructions must be 300 characters or fewer');
+  if(!/^[6-9]\d{9}$/.test(phone)) {const error=new Error('Enter a valid 10-digit Indian mobile number');error.status=400;throw error;}
+  if(address.length<10||address.length>250) {const error=new Error('Enter a complete delivery address (10 to 250 characters)');error.status=400;throw error;}
+  if(instructions.length>300) {const error=new Error('Delivery instructions must be 300 characters or fewer');error.status=400;throw error;}
   return {phone,address,instructions};
 }
 async function normalizeItems(items){
