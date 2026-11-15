@@ -113,7 +113,6 @@ export default function Home(){
         quantity:x.quantity,
         customization:x.customization||defaultCustomization
       }));
-      const hasRazorpay=Boolean(import.meta.env.VITE_RAZORPAY_KEY_ID);
       if(paymentMethod==='razorpay'){
         const {data}=await api.post('/orders/payment-order',{items,customerDetails});
         let script=document.querySelector('script[data-razorpay]');
