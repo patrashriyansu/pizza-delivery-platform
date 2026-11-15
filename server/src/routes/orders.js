@@ -11,7 +11,7 @@ const router=Router(); router.use(protect);
 function validateCustomization(c){if(!c?.base||!c?.sauce||!c?.cheese||!Array.isArray(c.vegetables)) throw new Error('Choose a base, sauce, cheese and vegetables');}
 const defaultCustomization={base:'Classic Thin Crust',sauce:'Classic Tomato',cheese:'Mozzarella',vegetables:['Onion']};
 function validateDeliveryDetails(details){
-  const phone=String(details?.phone||'').replace(/\\D/g,'');
+  const phone=String(details?.phone||'').replace(/\D/g,'');
   const address=String(details?.address||'').trim();
   const instructions=String(details?.instructions||'').trim();
   if(!/^[6-9]\d{9}$/.test(phone)) {const error=new Error('Enter a valid 10-digit Indian mobile number');error.status=400;throw error;}
