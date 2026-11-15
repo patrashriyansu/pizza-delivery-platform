@@ -1,0 +1,22 @@
+import {Router} from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import {body,validationResult} from 'express-validator';
+import User from '../models/User.js';
+import {createRawToken,hashToken} from '../utils/tokens.js';
+import {sendEmail} from '../utils/email.js';
+import {asyncHandler} from '../utils/asyncHandler.js';
+const router=Router();
+const validate=(req,res,next)=>{const e=validationResult(req); if(!e.isEmpty()) return res.status(400).json({message:e.array()[0].msg}); next();};
+const issueToken=user=>jwt.sign({sub:user._id.toString(),role:user.role},process.env.JWT_SECRET,{expiresIn:process.env.JWT_EXPIRES_IN||'7d'});
+router.post('/register',[body('name').trim().notEmpty().withMessage('Name is required'),body('email').isEmail().withMessage('Enter a valid email'),body('password').isLength({min:8}).withMessage('Password must be at least 8 characters').matches(/\d/).withMessage('Password must include a number')],validate,asyncHandler(async(req,res)=>{
+ const email=req.body.email.toLowerCase().trim(); if(await User.exists({email})) return res.status(409).json({message:'An account with this email already exists'});
+ const raw=createRawToken(); const user=await User.create({name:req.body.name,email,passwordHash:await bcrypt.hash(req.body.password,12),verifyTokenHash:hashToken(raw),verifyTokenExpires:new Date(Date.now()+24*3600*1000)});
+ const link=`${process.env.CLIENT_URL}/verify-email?token=${raw}`; await sendEmail({to:email,subject:'Verify your SliceHouse email',html:`<p>Welcome, ${user.name}!</p><p><a href="${link}">Verify your email</a>. This link expires in 24 hours.</p>`});
+ res.status(201).json({message:'Account created. Please verify your email using the link sent to your inbox.'});
+}));
+router.post('/verify-email',body('token').notEmpty(),validate,asyncHandler(async(req,res)=>{const user=await User.findOne({verifyTokenHash:hashToken(req.body.token),verifyTokenExpires:{$gt:new Date()}}); if(!user) return res.status(400).json({message:'Verification link is invalid or expired'}); user.isVerified=true; user.verifyTokenHash=undefined; user.verifyTokenExpires=undefined; await user.save(); res.json({message:'Email verified. You can now sign in.'});}));
+router.post('/login',[body('email').isEmail(),body('password').notEmpty()],validate,asyncHandler(async(req,res)=>{const user=await User.findOne({email:req.body.email.toLowerCase().trim()}).select('+passwordHash'); const ok=user&&await bcrypt.compare(req.body.password,user.passwordHash); if(!ok) return res.status(401).json({message:'Invalid email or password'}); if(!user.isVerified&&user.role!=='admin') return res.status(403).json({message:'Please verify your email before signing in'}); res.json({token:issueToken(user),user:{id:user._id,name:user.name,email:user.email,role:user.role}});}));
+router.post('/forgot-password',body('email').isEmail(),validate,asyncHandler(async(req,res)=>{const user=await User.findOne({email:req.body.email.toLowerCase().trim()}); if(user){const raw=createRawToken(); user.resetTokenHash=hashToken(raw); user.resetTokenExpires=new Date(Date.now()+30*60*1000); await user.save(); const link=`${process.env.CLIENT_URL}/reset-password?token=${raw}`; await sendEmail({to:user.email,subject:'Reset your SliceHouse password',html:`<p><a href="${link}">Reset password</a>. This link expires in 30 minutes.</p>`});} res.json({message:'If the account exists, a reset link has been sent.'});}));
+router.post('/reset-password',[body('token').notEmpty(),body('password').isLength({min:8}).matches(/\d/)],validate,asyncHandler(async(req,res)=>{const user=await User.findOne({resetTokenHash:hashToken(req.body.token),resetTokenExpires:{$gt:new Date()}}).select('+passwordHash'); if(!user) return res.status(400).json({message:'Reset link is invalid or expired'}); user.passwordHash=await bcrypt.hash(req.body.password,12); user.resetTokenHash=undefined; user.resetTokenExpires=undefined; await user.save(); res.json({message:'Password updated. Please sign in.'});}));
+export default router;

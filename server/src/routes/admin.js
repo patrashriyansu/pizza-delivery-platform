@@ -1,0 +1,13 @@
+import {Router} from 'express';
+import {protect,adminOnly} from '../middleware/auth.js';
+import Order from '../models/Order.js';
+import Inventory from '../models/Inventory.js';
+import User from '../models/User.js';
+import {asyncHandler} from '../utils/asyncHandler.js';
+const router=Router(); router.use(protect,adminOnly);
+router.get('/overview',asyncHandler(async(req,res)=>{const [orders,customers,revenue,lowStock]=await Promise.all([Order.countDocuments(),User.countDocuments({role:'customer'}),Order.aggregate([{$match:{paymentStatus:'paid'}},{$group:{_id:null,total:{$sum:'$amount'}}}]),Inventory.countDocuments({$expr:{$lte:['$stock','$threshold']}})]); res.json({orders,customers,revenue:revenue[0]?.total||0,lowStock});}));
+router.get('/orders',asyncHandler(async(req,res)=>res.json(await Order.find().populate('user','name email').sort({createdAt:-1}).limit(100))));
+router.patch('/orders/:id/status',asyncHandler(async(req,res)=>{const allowed=['ORDER_RECEIVED','IN_KITCHEN','SENT_TO_DELIVERY','DELIVERED','CANCELLED']; if(!allowed.includes(req.body.status)) return res.status(400).json({message:'Invalid order status'}); const order=await Order.findByIdAndUpdate(req.params.id,{status:req.body.status},{new:true}).populate('user','name email'); if(!order) return res.status(404).json({message:'Order not found'}); req.app.get('io').to(`user:${order.user._id}`).emit('order:update',{orderId:order._id,status:order.status}); res.json(order);}));
+router.get('/inventory',asyncHandler(async(req,res)=>res.json(await Inventory.find().sort({category:1,name:1}))));
+router.patch('/inventory/:id',asyncHandler(async(req,res)=>{const update={}; for(const key of ['stock','threshold']) if(req.body[key]!==undefined){const n=Number(req.body[key]); if(!Number.isInteger(n)||n<0) return res.status(400).json({message:`${key} must be a non-negative integer`}); update[key]=n;} if(update.stock!==undefined&&update.stock>0) update.alertSent=false; const item=await Inventory.findByIdAndUpdate(req.params.id,update,{new:true,runValidators:true}); if(!item) return res.status(404).json({message:'Inventory item not found'}); res.json(item);}));
+export default router;
