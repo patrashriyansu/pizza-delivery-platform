@@ -267,7 +267,7 @@ export default function Home(){
       </section>}
       <div className="cart-footer">
         <div><small>{itemCount} item(s)</small><b>Subtotal <strong>₹{subtotal}</strong></b><small className="checkout-note">{user?'Review your delivery and payment details above.':'Sign in is required before checkout. Your bag will be saved.'}</small></div>
-        <button className="primary checkout-button" onClick={checkout} disabled={!cart.length||busy}>{busy?'Processing…':user?'Place order':'Sign in to checkout'} <ArrowRight size={17}/></button>
+        <button className="primary checkout-button" onClick={checkout} disabled={!cart.length||busy}>{busy?'Processing…':user?(paymentMethod==='razorpay'?'Pay ₹'+subtotal:'Place order'):'Sign in to checkout'} <ArrowRight size={17}/></button>
       </div>
       {notice&&<p className="cart-notice" role="status">{notice}</p>}
     </section>
